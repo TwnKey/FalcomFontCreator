@@ -30,7 +30,7 @@ int size;
 std::string font;
 int base;
 int NbChar;
-
+short SpaceBetweenCharacters, SpaceWidth;
 std::vector<unsigned char> intToByteArray(int k){
 	std::vector<unsigned char> res(4);
 	res[0] =  k & 0x000000ff;
@@ -60,14 +60,20 @@ void draw_bitmap( FT_Bitmap*  bitmap, FT_Int x, FT_Int y, std::vector<uint8_t> &
 	uint8_t line_number = bitmap->rows;
 	int baseline_x = 0xFF;
 	uint8_t offset_x = baseline_x-x;
-	uint8_t byteoffy1,byteoffy2;
+	uint8_t byteoffy1,byteoffy2, bytea1, bytea2, byteb1, byteb2;
 	 
 	int offset_y = baseline-y;
+	if (offset_y < 0) offset_y = 0;
 	byteoffy1 = (offset_y & 0xFF00)>>8;
 	byteoffy2 = offset_y & 0xFF;
 	
+	
+	short b = column_number + SpaceBetweenCharacters;
+	if (column_number == 0) b = SpaceWidth;
+	byteb1 = (b & 0xFF00)>>8;
+	byteb2 = b & 0xFF;
 
-	uint8_t byteArray[] = {column_number,0,line_number,0,byteoffy2,byteoffy1,0x0,0x0,0x0,0,0x01,0x0};
+	uint8_t byteArray[] = {column_number,0,line_number,0,byteoffy2,byteoffy1,0,0,byteb2,byteb1,0x01,0x0};
 	 
 
 	for (int h=0;h<12;h++) buffer_letter.push_back(byteArray[h]);
@@ -202,6 +208,8 @@ int main( int     argc,
 			else if (idx=str.find("Font")!=-1) font = str.substr(str.find("=")+1,str.length());
 			else if (idx=str.find("Base")!=-1) base = std::stoi(str.substr(str.find("=")+1,str.length()));
 			else if (idx=str.find("NbChar")!=-1) NbChar = std::stoi(str.substr(str.find("=")+1,str.length()));
+			else if (idx=str.find("SpaceWidth")!=-1) SpaceWidth = std::stoi(str.substr(str.find("=")+1,str.length()));
+			else if (idx=str.find("SpaceBetweenCharacters")!=-1) SpaceBetweenCharacters = std::stoi(str.substr(str.find("=")+1,str.length()));
 			
     }
 	std::cout << "Resolution " << resolution << std::endl;
