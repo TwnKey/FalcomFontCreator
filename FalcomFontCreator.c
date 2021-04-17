@@ -27,10 +27,11 @@
 
 short resolution;
 int size;
-std::string font;
+std::string font, itf_ref = "none";
 int base;
 int NbChar;
 short SpaceBetweenCharacters, SpaceWidth;
+
 std::vector<unsigned char> intToByteArray(int k){
 	std::vector<unsigned char> res(4);
 	res[0] =  k & 0x000000ff;
@@ -47,7 +48,24 @@ std::vector<unsigned char> shortToByteArray(short k){
 	return res;
 }
 
-
+int vectorToInt(std::vector<unsigned char> nb, int addr){
+	int result = 0;
+	int cnt = 0;
+	for (std::vector<unsigned char>::const_iterator i = nb.begin()+addr; i != nb.begin()+addr+4; ++i){
+		result = result + (((*i) & 0x000000ff) << (cnt*8));
+		cnt++;
+		}
+	return result;
+}
+short vectorToShort(std::vector<unsigned char> nb, int addr){
+	int result = 0;
+	int cnt = 0;
+	for (std::vector<unsigned char>::const_iterator i = nb.begin()+addr; i != nb.begin()+addr+2; ++i){
+		result = result + (((*i) & 0x000000ff) << (cnt*8));
+		cnt++;
+		}
+	return result;
+}
 void draw_bitmap( FT_Bitmap*  bitmap, FT_Int x, FT_Int y, std::vector<uint8_t> &buffer_letter, const int baseline)
 {
 	int i,j,p,q;
@@ -196,7 +214,7 @@ int main( int     argc,
 	std::string str;
 	std::size_t idx = -1;
 	int code1 = 0;
-	std::vector<int> pile_of_additional_characters;
+	
 	std::cout << "Reading config file..." << std::endl;
 	while(getline(file, str)) 
     {
@@ -210,6 +228,7 @@ int main( int     argc,
 			else if (idx=str.find("NbChar")!=-1) NbChar = std::stoi(str.substr(str.find("=")+1,str.length()));
 			else if (idx=str.find("SpaceWidth")!=-1) SpaceWidth = std::stoi(str.substr(str.find("=")+1,str.length()));
 			else if (idx=str.find("SpaceBetweenCharacters")!=-1) SpaceBetweenCharacters = std::stoi(str.substr(str.find("=")+1,str.length()));
+			else if (idx=str.find("ITFReferenceFile")!=-1) itf_ref = str.substr(str.find("=")+1,str.length());
 			
     }
 	std::cout << "Resolution " << resolution << std::endl;
@@ -217,15 +236,54 @@ int main( int     argc,
 	std::cout << "Base " << base << std::endl;
 	std::cout << "NbChar " << NbChar << std::endl;
 	std::cout << "FontSize " << size << std::endl;
+	std::cout << "ITFReferenceFile " << itf_ref << std::endl;
+	std::cout << std::endl;
 	file.close();
+	
+	
+	
+	std::ifstream itf_file(itf_ref, std::ios::binary);
+	std::vector<unsigned char> buffer_font_reference_file;
+	std::vector<character> reference_characters;
+	bool itf_exists = std::filesystem::exists(itf_ref);
+	if (itf_exists){
+		if ( itf_file ) {
+			printf("Reference font file found, reading its content...\n");
+			buffer_font_reference_file = std::vector<unsigned char>((std::istreambuf_iterator<char>(itf_file)),
+			std::istreambuf_iterator<char>());
+			
+			
+			unsigned int nb_int = vectorToInt(buffer_font_reference_file, 12);
+			unsigned int nb_char = vectorToInt(buffer_font_reference_file, 8);
+			int addr_start = 0x10 + (nb_int-1) * 4;
+			int addr_end = addr_start + (nb_char) * 4;
+			printf("Found %d characters. It might take a while, please be patient.\n", nb_char);
+			for (int i = 0; i < nb_char; i++){
+				
+				unsigned int addr = vectorToInt(buffer_font_reference_file, addr_start + i*8 + 4);
+				unsigned int code = vectorToInt(buffer_font_reference_file, addr_start + i*8 + 0);
+				//printf("Character %x found at address %x.\n", code, addr);
+				character c = character(addr, code);
+				reference_characters.push_back(c);
+			}
+			std::sort(reference_characters.begin(), reference_characters.end());
+			printf("Done reading the content.\n");
+			
+		}
+		
+		
+	}
+	itf_file.close();
+	std::vector<int> pile_of_additional_characters;
 	for (int i = 0; i<NbChar; i++){
 		pile_of_additional_characters.push_back(i);
 	}	
 	
+	std::vector<unsigned char> buffer_font_file;
 	std::sort(pile_of_additional_characters.begin(), pile_of_additional_characters.end());
 	
 	
-	std::vector<unsigned char> buffer_font_file;
+	
 	std::vector<unsigned char> resolution_bytes = shortToByteArray(resolution);
 	
 	int idk_what_that_is = 0x0D;
@@ -240,7 +298,7 @@ int main( int     argc,
 	buffer_font_file.insert(buffer_font_file.end(),bytes_idk.begin(), bytes_idk.end());
 	
 	for (int i = 0; i<idk_what_that_is-1; i++){
-		std::vector<unsigned char> zero_bytes =intToByteArray(0);
+		std::vector<unsigned char> zero_bytes = intToByteArray(0);
 		buffer_font_file.insert(buffer_font_file.end(),zero_bytes.begin(),zero_bytes.end());
 	} 
 	
@@ -299,10 +357,79 @@ int main( int     argc,
 		glyph_code = FT_Get_Char_Index(face, char_code );
 		
 		if (glyph_code == 0){
-			std::vector<unsigned char> code_bytes = intToByteArray(current_char.code);
-			std::vector<unsigned char> addr_bytes = intToByteArray(buffer_font_file.size() + characters.size() * 8);
-			addr_section.insert(addr_section.end(),code_bytes.begin(), code_bytes.end());
-			addr_section.insert(addr_section.end(),addr_bytes.begin(),addr_bytes.end());
+			
+			//printf("The required character %x doesn't exist in the ttf font.\n", char_code);
+			if (reference_characters.size() != 0){
+				//printf("Trying to find it in the ITF reference font file...\n");
+				bool character_found = false;
+				for (int i = 0; i < reference_characters.size(); i++){
+					if (reference_characters[i].code ==  char_code){
+						int addr_end;
+						if (i == reference_characters.size() - 1) addr_end = buffer_font_reference_file.size();
+						else addr_end = reference_characters[i+1].addr;
+						std::vector<unsigned char>::const_iterator first = buffer_font_reference_file.begin() + reference_characters[i].addr;
+						std::vector<unsigned char>::const_iterator last = buffer_font_reference_file.begin() + addr_end;
+						std::vector<unsigned char> letter_bytes(first, last);
+						if (letter_bytes.size() > 8){
+							unsigned short y = vectorToShort(letter_bytes, 4);
+							unsigned short x = vectorToShort(letter_bytes, 0);
+							unsigned short rows = vectorToShort(letter_bytes, 2);
+							unsigned short offset_y = 1 + baseline - rows; //here I don't like it, but to find the correct offset so that the character is aligned with the rest, 
+							//you need to know the origin of the letter 
+							//which you can't deduce with only the height and the y offset
+							//baseline - (height - origin) = offset y
+							//we know height, we know the baseline, but since we don't know the origin... I don't think it's possible, in special cases such as CS4 with special characters,
+							//you will have to manually edit the offset until it fits
+							if (offset_y < 0) offset_y = 0;
+							unsigned char byteoffy1 = (offset_y & 0xFF00)>>8;
+							unsigned char byteoffy2 = offset_y & 0xFF;
+							
+							/*uint8_t byteb1, byteb2;
+							short b = x + SpaceBetweenCharacters;
+							if (x == 0) b = SpaceWidth;
+							byteb1 = (b & 0xFF00)>>8;
+							byteb2 = b & 0xFF;*/
+	
+	
+							letter_bytes[4] = byteoffy2;
+							letter_bytes[5] = byteoffy1;
+							/*letter_bytes[6] = byteb2;
+							letter_bytes[7] = byteb1;*/
+						}
+						
+						
+						std::vector<unsigned char> code_bytes = intToByteArray(reference_characters[i].code);
+						std::vector<unsigned char> addr_bytes = intToByteArray(current_position);
+						addr_section.insert(addr_section.end(),code_bytes.begin(), code_bytes.end());
+						addr_section.insert(addr_section.end(),addr_bytes.begin(),addr_bytes.end());
+						
+						current_position += letter_bytes.size();
+						drawing_section.insert(drawing_section.end(),letter_bytes.begin(), letter_bytes.end());
+						character_found = true;
+						//printf("Found it!\n");
+						break;
+					}
+				}
+				if (!character_found){
+					//printf("No luck!\n");
+					std::vector<unsigned char> code_bytes = intToByteArray(current_char.code);
+					std::vector<unsigned char> addr_bytes = intToByteArray(buffer_font_file.size() + characters.size() * 8);
+					addr_section.insert(addr_section.end(),code_bytes.begin(), code_bytes.end());
+					addr_section.insert(addr_section.end(),addr_bytes.begin(),addr_bytes.end());
+				}
+				
+				
+			}
+			else{
+				std::vector<unsigned char> code_bytes = intToByteArray(current_char.code);
+				std::vector<unsigned char> addr_bytes = intToByteArray(buffer_font_file.size() + characters.size() * 8);
+				addr_section.insert(addr_section.end(),code_bytes.begin(), code_bytes.end());
+				addr_section.insert(addr_section.end(),addr_bytes.begin(),addr_bytes.end());
+				
+			}
+			
+			
+			
 			
 			
 		} 
