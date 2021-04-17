@@ -17,22 +17,12 @@ NbChar=4095 <= 4095 means we will try to render the first 4095 characters in UTF
 
 # Additional characters from existing ITF file
 
-If for some reason there is a need for very special characters that are not in a ttf file but inside a itf instead,
+If for some reason there is a need for very special characters that are not in a ttf file but inside a itf instead, you can add the following line to the config_font.ini:
 
-you can add the following line to the config_font.ini:
+ITFReferenceFile= <itf font file path>
 
-ITFReferenceFile=font_enx.itf
+This will tell the tool to pick the characters inside this font when they are not present in the provided TTF file. However, there is a problem of alignment. To my understanding, there is no way to know the base of the character from the itf font data. Therefore you will need to align those special characters manually inside the resulting itf file.
 
-This will tell the tool to pick the characters inside this font when they are not present in the provided TTF file.
-
-However, there is a problem of alignment. To my understanding, there is no way to know the base of the character from 
-
-the itf font data. Therefore you will need to align those special characters manually inside the resulting itf file.
-
-To do that, first look for the character inside the itf file by looking for its UTF32 code in the first section. 
-
-Next to its code is the address inside the file. When going to this address (addr), you can adjust the position of the character 
-
-by editing the value at addr + 4 (for y axis) and addr + 6 (for x axis).
+To do that, first look for the character inside the itf file by looking for its UTF32 code in the first section. Next to its code is the address inside the file. When going to this address (addr), you can adjust the position of the character by editing the value at addr + 4 (for y axis) and addr + 6 (for x axis).
 
 Let me know (feitaishi45@gmail.com) if you encounter a problem or have a suggestion regarding this matter.
