@@ -19,7 +19,7 @@ NbChar=4095 <= 4095 means we will try to render the first 4095 characters in UTF
 
 If for some reason there is a need for very special characters that are not in a ttf file but inside a itf instead, you can add the following line to the config_font.ini:
 
-ITFReferenceFile= <itf font file path>
+ITFReferenceFile= "itf font file path"
 
 This will tell the tool to pick the characters inside this font when they are not present in the provided TTF file. However, there is a problem of alignment. To my understanding, there is no way to know the base of the character from the itf font data. Therefore you will need to align those special characters manually inside the resulting itf file.
 
