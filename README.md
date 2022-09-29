@@ -25,6 +25,6 @@ This will tell the tool to pick the characters inside this font when they are no
 
 To do that, first look for the character inside the itf file by looking for its unicode in the first section. Next to its code is the address inside the file. When going to this address (addr), you can adjust the position of the character by editing the value at addr + 4 (for y axis) and addr + 6 (for x axis).
 
-From 1.3 version you can replace Shift jis characters drawing with non shift jis ones (useful for fan translation, where you can replace ぁ with é for example)
+From 1.3 version you can replace Shift jis characters drawing with non shift jis ones (useful for fan translation, where you can replace ぁ with é for example)\
 ![image](https://user-images.githubusercontent.com/69110695/193106532-50f10d21-9a71-4f35-bfd7-592a3f3bac3e.png)
 
